@@ -74,17 +74,61 @@ From this list you will need to make note of the device IDs for the GPUs you are
 
 For Radeon cards:
 ```
-$lspci -nn | grep ATI
+$ lspci -nn | grep ATI
+43:00.0 VGA compatible controller: Advanced Micro Devices, Inc. [AMD/ATI] Ellesmere [Radeon Pro WX 5100]
+43:00.1 Audio device: Advanced Micro Devices, Inc. [AMD/ATI] Ellesmere [Radeon RX 580]
 ```
 
 For GeForce cards:
 ```
-$lspci -nn | grep NVIDIA
+$ lspci -nn | grep NVIDIA
+0b:00.0 VGA compatible controller: NVIDIA Corporation GP106 [GeForce GTX 1060 6GB] (rev a1)
+0b:00.1 Audio device: NVIDIA Corporation GP106 High Definition Audio Controller (rev a1)
+```
+
+Make a note of the IDs and bus designations for both virtual devices (VGA controller and audio device) associated with your guest GPU:
+```
+VGAPT_VGA_ID='10de:1401'
+VGAPT_VGA_AUDIO_ID='10de:0fba'
+VGAPT_VGA_BUS=01:00.0
+VGAPT_VGA_AUDIO_BUS=01:00.1
+```
 
 ## Banish the guest GPU
-* Use values noted above
-* Bind the vfio driver to guest gpu
-* Reboot and check
+In order to make use of the guest GPU in our virtual machine, we need to ensure that the host operating system doesn't latch onto it. To avoid this, we bind the vfio driver to the guest gpu at boot (using the IDs noted above):
+```
+$ echo options vfio-pci ids=$VGAPT_VGA_ID,$VGAPT_VGA_AUDIO_ID > /etc/modprobe.d/vfio.conf
+$ printf "vfio\nvfio_pci\n" > /etc/modules-load.d/vfio.conf
+$ update-initramfs -u
+```
+
+Reboot the host machine and then verify that the vfio driver is binding properly. Using `lspci -v` and finding the guest GPU in the output will tell us which driver is in use:
+```
+$ lspci -v
+...
+0b:00.0 VGA compatible controller: NVIDIA Corporation GP106 [GeForce GTX 1060 6GB] (rev a1) (prog-if 00 [VGA controller])
+	Subsystem: eVga.com. Corp. GP106 [GeForce GTX 1060 6GB]
+	Flags: fast devsel, IRQ 145, NUMA node 0
+	Memory at fa000000 (32-bit, non-prefetchable) [size=16M]
+	Memory at 86a0000000 (64-bit, prefetchable) [size=256M]
+	Memory at 86b0000000 (64-bit, prefetchable) [size=32M]
+	I/O ports at 1000 [size=128]
+	Expansion ROM at fb000000 [disabled] [size=512K]
+	Capabilities: <access denied>
+	Kernel driver in use: vfio-pci
+	Kernel modules: nvidiafb, nouveau
+
+0b:00.1 Audio device: NVIDIA Corporation GP106 High Definition Audio Controller (rev a1)
+	Subsystem: eVga.com. Corp. GP106 High Definition Audio Controller
+	Flags: fast devsel, IRQ 146, NUMA node 0
+	Memory at fb080000 (32-bit, non-prefetchable) [size=16K]
+	Capabilities: <access denied>
+	Kernel driver in use: vfio-pci
+	Kernel modules: snd_hda_intel
+...
+```
+
+The presence of "Kernel driver in use: vfio-pci" on both devices means the driver is binding as intended.
 
 ## Create a VM
 * Basic setup
