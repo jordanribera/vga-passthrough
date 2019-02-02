@@ -49,9 +49,37 @@ $ sudo apt-get install qemu-system-x86 qemu-utils
 * Installing libvirt + virt-manager
 
 ## Exploration
-* Check dmesg for IOMMU support
-* Enumerate devices by IOMMU groups
-* Make note of guest GPU's IDs etc
+Here are some commands used to inspect your system's IOMMU groupings.
+
+### Check for IOMMU support
+If nothing matches this grep, you've got a problem.
+```
+$ dmesg | grep -e IOMMU
+[    0.614052] AMD-Vi: IOMMU performance counters supported
+[    0.614100] AMD-Vi: IOMMU performance counters supported
+[    0.641624] AMD-Vi: Found IOMMU at 0000:00:00.2 cap 0x40
+[    0.641627] AMD-Vi: Found IOMMU at 0000:40:00.2 cap 0x40
+[    0.643070] perf/amd_iommu: Detected AMD IOMMU #0 (2 banks, 4 counters/bank).
+[    0.643083] perf/amd_iommu: Detected AMD IOMMU #1 (2 banks, 4 counters/bank).
+[    6.356055] AMD IOMMUv2 driver by Joerg Roedel <jroedel@suse.de>
+```
+
+### Enumerate PCI-E devices
+List all PCI devices:
+```
+$ lspci
+```
+
+From this list you will need to make note of the device IDs for the GPUs you are working with.
+
+For Radeon cards:
+```
+$lspci -nn | grep ATI
+```
+
+For GeForce cards:
+```
+$lspci -nn | grep NVIDIA
 
 ## Banish the guest GPU
 * Use values noted above
