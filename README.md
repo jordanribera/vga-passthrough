@@ -128,11 +128,24 @@ $ lspci -v
 ...
 ```
 
-The presence of "Kernel driver in use: vfio-pci" on both devices means the driver is binding as intended.
+The presence of `Kernel driver in use: vfio-pci` on both devices means the driver is binding as intended.
 
 ## Create a VM
-* Basic setup
-* Adding PCI devices
-* What about input?
+Many of the guides available when I explored this process recommended manually invoking qemu via a script which holds a complex set of flags and variables. I was pleased to find that the GUI application virt-manager was perfectly capable of handling most of the configuration.
+
+### Basic setup
+Create a virtual machine as usual. I may return to expand this later.
+
+### Adding PCI devices
+Adding PCI devices is fairly straightforward. While viewing the virtual machine's properties:
+* Click "Add Hardware"
+* Select "PCI Host Device"
+* Scroll and select the appropriate device (in my case `0000:0b:00.0` and `0000:0b:00.1`)
+
+### Input and Output
+With this configuration, the guest GPU will output to an attached monitor just like a separate system. The easiest way to manage input to the virtual machine is to plug in a second mouse and keyboard and pass them directly to the guest. Another approach would be to attach your monitor and peripherals to a KVM, with the guest and host systems on different registers.
+
+A more advanced approach is to use evdev to route input data to the virtual machine. This works especially well in conjunction with [Looking Glass](https://looking-glass.hostfission.com/). With an HDMI or DisplayPort [dummy plug](https://www.amazon.com/gp/product/B077CZ6JC3/) attached, the guest GPU will render frames to its frame buffer as normal. The shared memory mapping and client binary provided by Looking Glass allows you to directly read that frame buffer and interact with your guest inside of a window.
+
+## More Later...
 * First boot & Code 43
-*
