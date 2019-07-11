@@ -1,6 +1,6 @@
 # vga-passthrough
 
-## Hardware Used
+## Hardware used
 Here is a list of the parts used in the system at time of writing:
 
 Thing | Part
@@ -12,16 +12,19 @@ GPU (host) | AMD Radeon Pro WX 5100
 GPU (guest) | EVGA GeForce GTX 1060 SC 6GB
 
 
-## Host Preparation
+## Host preparation
 This section details steps needed to prepare the host machine.
 
 ### BIOS settings
-bios settings here
+Before you start, go into your system's BIOS and ensure that IOMMU and AMD-v
+are enabled. Note that IOMMU should be **"enabled"**, not "auto". This does
+make a difference.
 
-### Install Host OS
+### Install host OS
 It's important to pick a linux distro+version that will get you a new kernel.
 For this guide I used Ubuntu 19.04, which is using version 5.0.x of the Linux
-kernel. You can check your kernel version like so:
+kernel. These same steps worked just as well for me with Ubuntu 18.10 with
+kernel version 4.19. You can check your kernel version like so:
 
 ```
 $ lsb_release -dc
@@ -58,7 +61,7 @@ sudo apt-get install libvirt virt-manager
 ```
 
 ## Exploration
-Here are some commands used to inspect your system's IOMMU groupings.
+Here are some commands used to inspect your system's pci-e devices.
 
 ### Check for IOMMU support
 If nothing matches this grep, you've got a problem.
@@ -74,13 +77,8 @@ $ dmesg | grep -e IOMMU
 ```
 
 ### Enumerate PCI-E devices
-List all PCI devices:
-```
-$ lspci
-```
-
-From this list you will need to make note of the device IDs for the GPUs you are
-working with.
+We can sift through the system's pci-e devices using the `lspci` command. We
+start off by finding both of our GPUs with the following command:
 ```
 $ lspci | grep VGA
 0a:00.0 VGA compatible controller: NVIDIA Corporation GP106 [GeForce GTX 1060 6GB] (rev a1)
@@ -89,7 +87,8 @@ $ lspci | grep VGA
 
 The first value on each of those lines represents the pci-e bus and slot for
 that device. In addition to the bus/slot, we will also need the device IDs for
-the cards in those slots.
+the cards in those slots. Use `-s` to filter by each of the two slots, and also
+`-nn` to display the device ID:
 ```
 $ lspci -s a0:00 -nn
 0a:00.0 VGA compatible controller [0300]: NVIDIA Corporation GP106 [GeForce GTX 1060 6GB] [10de:1c03] (rev a1)
@@ -104,16 +103,12 @@ There are a few things to take note of in this output. The first is the fact
 that there are two devices present on each slot. Any GPU with HDMI or
 DisplayPort outputs will also have an audio device since those connections
 carry audio in addition to video. The second thing is the device IDs, which
-appear in brackets at the end of each line.
-
-
-Make a note of the IDs and bus designations for both virtual devices
-(VGA controller and audio device) associated with your guest GPU:
+appear in brackets at the end of each line. Take note of the IDs for the video
+and audio devices from your guest GPU and stash them into environment
+variables:
 ```
 VGAPT_VGA_ID='10de:1401'
 VGAPT_VGA_AUDIO_ID='10de:0fba'
-VGAPT_VGA_BUS=0a:00.0
-VGAPT_VGA_AUDIO_BUS=0a:00.1
 ```
 
 ## Banish the guest GPU
@@ -165,15 +160,41 @@ of handling most of the configuration.
 Create a virtual machine as usual. I may return to expand this later.
 
 ### Adding PCI devices
-Adding PCI devices is fairly straightforward. While viewing the virtual machine's properties:
+Adding PCI devices is fairly straightforward. While viewing the virtual
+machine's properties:
 * Click "Add Hardware"
 * Select "PCI Host Device"
 * Scroll and select the appropriate device (in my case `0000:0a:00.0` and `0000:0a:00.1`)
 
 ### Input and Output
-With this configuration, the guest GPU will output to an attached monitor just like a separate system. The easiest way to manage input to the virtual machine is to plug in a second mouse and keyboard and pass them directly to the guest. Another approach would be to attach your monitor and peripherals to a KVM, with the guest and host systems on different registers.
+With this configuration, the guest GPU will output to an attached monitor just
+like a separate system. The easiest way to manage input to the virtual machine
+is to plug in a second mouse and keyboard and pass them directly to the guest.
 
-A more advanced approach is to use evdev to route input data to the virtual machine. This works especially well in conjunction with [Looking Glass](https://looking-glass.hostfission.com/). With an HDMI or DisplayPort [dummy plug](https://www.amazon.com/gp/product/B077CZ6JC3/) attached, the guest GPU will render frames to its frame buffer as normal. The shared memory mapping and client binary provided by Looking Glass allows you to directly read that frame buffer and interact with your guest inside of a window.
+A more advanced approach is to use evdev to route input data to the virtual
+machine. This works especially well in conjunction with
+[Looking Glass](https://looking-glass.hostfission.com/). With an HDMI or
+DisplayPort [dummy plug](https://www.amazon.com/gp/product/B077CZ6JC3/)
+attached, the guest GPU will render frames to its frame buffer as normal. The
+shared memory mapping and client binary provided by Looking Glass allows you to
+directly read that frame buffer and interact with your guest inside of a window.
+
+Finally the most robust method and the one that I eventually settled on would
+be to use a hardware KVMP switch. I added a pci-e USB 3.0 card and passed it to
+the virtual machine (binding the vfio driver to it and adding it in the
+virt-manager GUI just as with the GPU). Any device plugged into that card or a
+connected hub will hotplug and be detected by the vm. The KVMP switch is
+connected to both GPUs, and to one USB port on the motherboard and one on the
+VM's USB card. In terms of switching, the VM and host work as two separate
+systems.
+
+Audio output has its own complications. I decided right away that the virtual
+sound device was unacceptable. It stuttered and glitched and was absolute
+garbage. I highly recommend using a little USB
+[sound device](https://www.amazon.com/Sabrent-External-Adapter-Windows-AU-MMSA/dp/B00IRVQ0F8/).
+
+If you are using a KVMP switch and an HDMI or DisplayPort monitor with an audio
+output, that can also be a convenient option.
 
 ### Code 43
 Using an Nvidia card for the guest can involve an additional complication. In
