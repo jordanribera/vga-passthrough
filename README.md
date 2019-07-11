@@ -171,10 +171,10 @@ With this configuration, the guest GPU will output to an attached monitor just
 like a separate system. The easiest way to manage input to the virtual machine
 is to plug in a second mouse and keyboard and pass them directly to the guest.
 
-A more advanced approach is to use evdev to route input data to the virtual
-machine. This works especially well in conjunction with
-[Looking Glass](https://looking-glass.hostfission.com/). With an HDMI or
-DisplayPort [dummy plug](https://www.amazon.com/gp/product/B077CZ6JC3/)
+A more advanced approach is to use [evdev](https://passthroughpo.st/using-evdev-passthrough-seamless-vm-input/)
+to route input data to the virtual machine. This works especially well in
+conjunction with [Looking Glass](https://looking-glass.hostfission.com/). With
+an HDMI or DisplayPort [dummy plug](https://www.amazon.com/gp/product/B077CZ6JC3/)
 attached, the guest GPU will render frames to its frame buffer as normal. The
 shared memory mapping and client binary provided by Looking Glass allows you to
 directly read that frame buffer and interact with your guest inside of a window.
