@@ -6,7 +6,7 @@ Here is a list of the parts used in the system at time of writing:
 Thing | Part
 ----- | ----
 Motherboard | ASUS X399 Zenith Extreme
-CPU | AMD Ryzen Threadripper 1900X (8 core, 16 thread)
+CPU | AMD Ryzen Threadripper 2950X (16 core, 32 thread)
 RAM | 64GB (4x16) G.SKILL TridentZ DDR4 (3000MHz)
 GPU (host) | AMD Radeon Pro WX 5100
 GPU (guest) | EVGA GeForce GTX 1060 SC 6GB
@@ -20,18 +20,22 @@ bios settings here
 
 ### Install Host OS
 It's important to pick a linux distro+version that will get you a new kernel.
-For my own build I picked Ubuntu 18.10, which is using kernel 4.18. You can
-check the version of your linux kernel like so:
+For this guide I used Ubuntu 19.04, which is using version 5.0.x of the Linux
+kernel. You can check your kernel version like so:
 
 ```
-$ uname -a
-Linux hostname 4.18.0-10-generic #11-Ubuntu SMP Thu Oct 11 15:13:55 UTC 2018 x86_64 x86_64 x86_64 GNU/Linux
+$ lsb_release -dc
+Description:	Ubuntu 19.04
+Codename:	disco
+
+$ uname -r
+5.0.20-050020-generic
 ```
 
 ### Install OVMF
 You will need to provide qemu with OVMF, an open source UEFI firmware. I saw
 several guides which detailed how to compile this or download it from an
-external source. I was able to install it from existing/defautl repos using
+external source. I was able to install it from existing/default repos using
 apt:
 
 ```
@@ -46,7 +50,12 @@ install:
 $ sudo apt-get install qemu-system-x86 qemu-utils
 ```
 
-* Installing libvirt + virt-manager
+I also installed libvirt and virt-manager, which is a graphical tool for
+managing virtual machines.
+
+```
+sudo apt-get install libvirt virt-manager
+```
 
 ## Exploration
 Here are some commands used to inspect your system's IOMMU groupings.
@@ -70,43 +79,59 @@ List all PCI devices:
 $ lspci
 ```
 
-From this list you will need to make note of the device IDs for the GPUs you are working with.
-
-For Radeon cards:
+From this list you will need to make note of the device IDs for the GPUs you are
+working with.
 ```
-$ lspci -nn | grep ATI
+$ lspci | grep VGA
+0a:00.0 VGA compatible controller: NVIDIA Corporation GP106 [GeForce GTX 1060 6GB] (rev a1)
 43:00.0 VGA compatible controller: Advanced Micro Devices, Inc. [AMD/ATI] Ellesmere [Radeon Pro WX 5100]
-43:00.1 Audio device: Advanced Micro Devices, Inc. [AMD/ATI] Ellesmere [Radeon RX 580]
 ```
 
-For GeForce cards:
+The first value on each of those lines represents the pci-e bus and slot for
+that device. In addition to the bus/slot, we will also need the device IDs for
+the cards in those slots.
 ```
-$ lspci -nn | grep NVIDIA
-0b:00.0 VGA compatible controller: NVIDIA Corporation GP106 [GeForce GTX 1060 6GB] (rev a1)
-0b:00.1 Audio device: NVIDIA Corporation GP106 High Definition Audio Controller (rev a1)
+$ lspci -s a0:00 -nn
+0a:00.0 VGA compatible controller [0300]: NVIDIA Corporation GP106 [GeForce GTX 1060 6GB] [10de:1c03] (rev a1)
+0a:00.1 Audio device [0403]: NVIDIA Corporation GP106 High Definition Audio Controller [10de:10f1] (rev a1)
+
+$ lspci -s 43:00 -nn
+43:00.0 VGA compatible controller [0300]: Advanced Micro Devices, Inc. [AMD/ATI] Ellesmere [Radeon Pro WX 5100] [1002:67c7]
+43:00.1 Audio device [0403]: Advanced Micro Devices, Inc. [AMD/ATI] Ellesmere [Radeon RX 580] [1002:aaf0]
 ```
 
-Make a note of the IDs and bus designations for both virtual devices (VGA controller and audio device) associated with your guest GPU:
+There are a few things to take note of in this output. The first is the fact
+that there are two devices present on each slot. Any GPU with HDMI or
+DisplayPort outputs will also have an audio device since those connections
+carry audio in addition to video. The second thing is the device IDs, which
+appear in brackets at the end of each line.
+
+
+Make a note of the IDs and bus designations for both virtual devices
+(VGA controller and audio device) associated with your guest GPU:
 ```
 VGAPT_VGA_ID='10de:1401'
 VGAPT_VGA_AUDIO_ID='10de:0fba'
-VGAPT_VGA_BUS=01:00.0
-VGAPT_VGA_AUDIO_BUS=01:00.1
+VGAPT_VGA_BUS=0a:00.0
+VGAPT_VGA_AUDIO_BUS=0a:00.1
 ```
 
 ## Banish the guest GPU
-In order to make use of the guest GPU in our virtual machine, we need to ensure that the host operating system doesn't latch onto it. To avoid this, we bind the vfio driver to the guest gpu at boot (using the IDs noted above):
+In order to make use of the guest GPU in our virtual machine, we need to ensure
+that the host operating system doesn't latch onto it. To avoid this, we bind the
+vfio driver to the guest gpu at boot (using the IDs noted above):
 ```
 $ echo options vfio-pci ids=$VGAPT_VGA_ID,$VGAPT_VGA_AUDIO_ID > /etc/modprobe.d/vfio.conf
 $ printf "vfio\nvfio_pci\n" > /etc/modules-load.d/vfio.conf
 $ update-initramfs -u
 ```
 
-Reboot the host machine and then verify that the vfio driver is binding properly. Using `lspci -v` and finding the guest GPU in the output will tell us which driver is in use:
+Reboot the host machine and then verify that the vfio driver is binding
+properly. Using `lspci -v` and finding the guest GPU in the output will tell us
+which driver is in use:
 ```
-$ lspci -v
-...
-0b:00.0 VGA compatible controller: NVIDIA Corporation GP106 [GeForce GTX 1060 6GB] (rev a1) (prog-if 00 [VGA controller])
+$ lspci -s 0a:00 -v
+0a:00.0 VGA compatible controller: NVIDIA Corporation GP106 [GeForce GTX 1060 6GB] (rev a1) (prog-if 00 [VGA controller])
 	Subsystem: eVga.com. Corp. GP106 [GeForce GTX 1060 6GB]
 	Flags: fast devsel, IRQ 145, NUMA node 0
 	Memory at fa000000 (32-bit, non-prefetchable) [size=16M]
@@ -118,20 +143,23 @@ $ lspci -v
 	Kernel driver in use: vfio-pci
 	Kernel modules: nvidiafb, nouveau
 
-0b:00.1 Audio device: NVIDIA Corporation GP106 High Definition Audio Controller (rev a1)
+0a:00.1 Audio device: NVIDIA Corporation GP106 High Definition Audio Controller (rev a1)
 	Subsystem: eVga.com. Corp. GP106 High Definition Audio Controller
 	Flags: fast devsel, IRQ 146, NUMA node 0
 	Memory at fb080000 (32-bit, non-prefetchable) [size=16K]
 	Capabilities: <access denied>
 	Kernel driver in use: vfio-pci
 	Kernel modules: snd_hda_intel
-...
 ```
 
-The presence of `Kernel driver in use: vfio-pci` on both devices means the driver is binding as intended.
+The presence of `Kernel driver in use: vfio-pci` on both devices means the vfio
+driver is binding as intended.
 
 ## Create a VM
-Many of the guides available when I explored this process recommended manually invoking qemu via a script which holds a complex set of flags and variables. I was pleased to find that the GUI application virt-manager was perfectly capable of handling most of the configuration.
+Many of the guides available when I explored this process recommended manually
+invoking qemu via a script which holds a complex set of flags and variables. I
+was pleased to find that the GUI application virt-manager was perfectly capable
+of handling most of the configuration.
 
 ### Basic setup
 Create a virtual machine as usual. I may return to expand this later.
@@ -140,12 +168,45 @@ Create a virtual machine as usual. I may return to expand this later.
 Adding PCI devices is fairly straightforward. While viewing the virtual machine's properties:
 * Click "Add Hardware"
 * Select "PCI Host Device"
-* Scroll and select the appropriate device (in my case `0000:0b:00.0` and `0000:0b:00.1`)
+* Scroll and select the appropriate device (in my case `0000:0a:00.0` and `0000:0a:00.1`)
 
 ### Input and Output
 With this configuration, the guest GPU will output to an attached monitor just like a separate system. The easiest way to manage input to the virtual machine is to plug in a second mouse and keyboard and pass them directly to the guest. Another approach would be to attach your monitor and peripherals to a KVM, with the guest and host systems on different registers.
 
 A more advanced approach is to use evdev to route input data to the virtual machine. This works especially well in conjunction with [Looking Glass](https://looking-glass.hostfission.com/). With an HDMI or DisplayPort [dummy plug](https://www.amazon.com/gp/product/B077CZ6JC3/) attached, the guest GPU will render frames to its frame buffer as normal. The shared memory mapping and client binary provided by Looking Glass allows you to directly read that frame buffer and interact with your guest inside of a window.
+
+### Code 43
+Using an Nvidia card for the guest can involve an additional complication. In
+order to protect the perceived value of their enterprise compute cards, their
+consumer card drivers will panic if they detect that they are being used by a
+virtual system. The result is a GPU driver crash with "code 43".
+
+Fortunately the driver doesn't need to know (shhhhh). By editing the VM's
+configuration XML directly and adding two options, I was able to convince the
+Nvidia card that it was not living inside of a simulation.
+```
+$ virsh edit <vm name>
+```
+
+This will open the XML configuration for your VM in your default editor. the
+two things you need to add fall within the XML topology like so:
+```
+<domain type='kvm' xmlns:qemu='http://libvirt.org/schemas/domain/qemu/1.0'>
+...
+  <features>
+    <hyperv>
+      <vendor_id state='on' value='123456789ab'/>
+    </hyperv>
+    <kvm>
+      <hidden state='on'/>
+    </kvm>
+  </features>
+...
+</domain>
+```
+
+You may find that `<features>`. `<hyperv>`, and/or `<kvm>` already exist.
+That's fine. Just be sure you have a `vendor_id` and `hidden`.
 
 ## More Later...
 * First boot & Code 43
