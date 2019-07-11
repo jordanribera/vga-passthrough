@@ -17,7 +17,7 @@ This section details steps needed to prepare the host machine.
 
 ### BIOS settings
 Before you start, go into your system's BIOS and ensure that IOMMU and AMD-v
-are enabled. Note that IOMMU should be **"enabled"**, not "auto". This does
+are enabled. Note that IOMMU should be **"enabled"**, not **"auto"**. This does
 make a difference.
 
 ### Install host OS
