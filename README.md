@@ -122,7 +122,7 @@ $ update-initramfs -u
 ```
 
 Reboot the host machine and then verify that the vfio driver is binding
-properly. Using `lspci -v` and aimed at the guest GPU will tell us which
+properly. Using `lspci -v` aimed at the guest GPU will tell us which
 driver is in use:
 ```
 $ lspci -s 0a:00 -v
