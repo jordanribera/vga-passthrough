@@ -122,8 +122,8 @@ $ update-initramfs -u
 ```
 
 Reboot the host machine and then verify that the vfio driver is binding
-properly. Using `lspci -v` and finding the guest GPU in the output will tell us
-which driver is in use:
+properly. Using `lspci -v` and aimed at the guest GPU will tell us which
+driver is in use:
 ```
 $ lspci -s 0a:00 -v
 0a:00.0 VGA compatible controller: NVIDIA Corporation GP106 [GeForce GTX 1060 6GB] (rev a1) (prog-if 00 [VGA controller])
