@@ -9,7 +9,7 @@ Motherboard | ASUS X399 Zenith Extreme
 CPU | AMD Ryzen Threadripper 2950X (16 core, 32 thread)
 RAM | 64GB (4x16) G.SKILL TridentZ DDR4 (3000MHz)
 GPU (host) | AMD Radeon Pro WX 5100
-GPU (guest) | EVGA GeForce GTX 1060 SC 6GB
+GPU (guest) | RTX 2080ti Founders Edition
 
 
 ## Host preparation
@@ -81,7 +81,7 @@ We can sift through the system's pci-e devices using the `lspci` command. We
 start off by finding both of our GPUs with the following command:
 ```
 $ lspci | grep VGA
-0a:00.0 VGA compatible controller: NVIDIA Corporation GP106 [GeForce GTX 1060 6GB] (rev a1)
+0a:00.0 VGA compatible controller: NVIDIA Corporation GV102 (rev a1)
 43:00.0 VGA compatible controller: Advanced Micro Devices, Inc. [AMD/ATI] Ellesmere [Radeon Pro WX 5100]
 ```
 
@@ -90,9 +90,11 @@ that device. In addition to the bus/slot, we will also need the device IDs for
 the cards in those slots. Use `-s` to filter by each of the two slots, and also
 `-nn` to display the device ID:
 ```
-$ lspci -s a0:00 -nn
-0a:00.0 VGA compatible controller [0300]: NVIDIA Corporation GP106 [GeForce GTX 1060 6GB] [10de:1c03] (rev a1)
-0a:00.1 Audio device [0403]: NVIDIA Corporation GP106 High Definition Audio Controller [10de:10f1] (rev a1)
+$ lspci -s 0a:00 -nn
+0a:00.0 VGA compatible controller [0300]: NVIDIA Corporation GV102 [10de:1e07] (rev a1)
+0a:00.1 Audio device [0403]: NVIDIA Corporation TU102 High Definition Audio Controller [10de:10f7] (rev a1)
+0a:00.2 USB controller [0c03]: NVIDIA Corporation TU102 USB 3.1 Controller [10de:1ad6] (rev a1)
+0a:00.3 Serial bus controller [0c80]: NVIDIA Corporation TU102 USCI Controller [10de:1ad7] (rev a1)
 
 $ lspci -s 43:00 -nn
 43:00.0 VGA compatible controller [0300]: Advanced Micro Devices, Inc. [AMD/ATI] Ellesmere [Radeon Pro WX 5100] [1002:67c7]
@@ -100,11 +102,12 @@ $ lspci -s 43:00 -nn
 ```
 
 There are a few things to take note of in this output. The first is the fact
-that there are two devices present on each slot. Any GPU with HDMI or
+that there are multiple devices present on each slot. Any GPU with HDMI or
 DisplayPort outputs will also have an audio device since those connections
-carry audio in addition to video. The second thing is the device IDs, which
-appear in brackets at the end of each line. Take note of the IDs for the video
-and audio devices from your guest GPU and stash them into environment
+carry audio in addition to video. Additionally RTX cards have a USB controller
+for the USB type C port (intended for VR). The second thing is the device IDs,
+which appear in brackets at the end of each line. Take note of the IDs for the
+devices from your guest GPU and stash them into environment
 variables:
 ```
 VGAPT_VGA_ID='10de:1401'
